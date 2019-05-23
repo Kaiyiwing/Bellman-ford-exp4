@@ -4,11 +4,12 @@ let num = 0;
 // 存储图的结构
 let points = [];
 let graph = [];
+let graph2 = [];// 用于拷贝数组
 // 画布属性
 let c_width = 1200, c_height = 800;
 
 let arrow_color = 'rgba(0,0,256,0.4)';
-let arrow_color2 = 'rgba(0,256,0,0.6)';
+let arrow_color2 = 'rgba(0,256,0,0.8)';
 let arrow_theta = 25;
 let arrow_headlen = 20;
 
@@ -21,10 +22,11 @@ let init_x, init_y, init_point;
 let r = 20;
 // 点颜色，第一个为正常颜色，第二个为用于标注的颜色
 let point_color = ['red', 'green'];
+let circle = []; // 用来存储边
 
-let infinite = 10000;
+let infinite = 100;
 let has = [];
-let has2 = [];
+let interval;
 
 class Point {
     constructor(id, x, y) {
@@ -52,9 +54,15 @@ window.onload = function () {
 
     // random_generate();
 
-    demo_generate();
-    bellman_fold(0);
-    draw(graph);
+    interval = window.setInterval("find_negative()", 500);
+
+
+
+    
+
+    // console.log(bellman_fold(0));
+
+
 
     $(document).keydown(function (e) {
         if (e.which === 76) {
@@ -64,12 +72,26 @@ window.onload = function () {
 
         if (e.which === 68) {
             //d
-            draw(graph);
 
         }
     });
 };
-
+function find_negative()
+{
+    num = 0;
+    points = [];
+    graph = [];
+    graph2 = [];// 用于拷贝数组
+    circle = []; // 用来存储边
+    has = [];
+    random_generate();
+    draw(graph);
+    if(!bellman_fold(0))
+    {
+        clearInterval(interval);
+        find_negative_circle();
+    }
+}
 function demo_generate()
 {
     points.push(new Point(0, 300, 400));
@@ -78,9 +100,11 @@ function demo_generate()
     points.push(new Point(3, 900, 600));
     points.push(new Point(4, 600, 600));
 
-    graph = [[undefined,6,undefined,undefined,7],[undefined,undefined,5,-4,8],
-        [undefined,-2,undefined,undefined,undefined],[2,undefined,7,undefined,undefined],
-        [undefined,undefined,-3,9,undefined]];
+    graph = [[undefined,6,undefined,undefined,7],
+                [undefined,undefined,5,-4,8],
+                [undefined,-2,undefined,undefined,-3],
+                [2,undefined,-7,undefined,undefined],
+                [undefined,undefined,undefined,9,undefined]];
 }
 
 function random_generate() {
@@ -108,15 +132,15 @@ function random_generate() {
     for (let i = 0; i < edge_num; i++) {
         let edgeCount1 = parseInt(Math.random() * point_num);
         let edgeCount2 = parseInt(Math.random() * point_num);
-        const weight = weight_min + parseInt(Math.random() * weight_max + 1);
+        const weight = weight_min + parseInt(Math.random() * (weight_max + Math.abs(weight_min)) + 1);
 
-        while (!is_in_has(edgeCount1,edgeCount2,has2))
+        while (!is_in_has(edgeCount1,edgeCount2,has))
         {
             edgeCount1 = parseInt(Math.random() * point_num);
             edgeCount2 = parseInt(Math.random() * point_num);
-            if(!is_in_has(edgeCount1,edgeCount2,has2))
+            if(!is_in_has(edgeCount1,edgeCount2,has))
             {
-                has2.push(new Node_x(edgeCount1, edgeCount2));
+                has.push(new Node_x(edgeCount1, edgeCount2));
 
                 graph[edgeCount1][edgeCount2] = weight;
             }
@@ -130,13 +154,26 @@ function bellman_fold(start)
 {
     points[start].d = 0;
 
+    // 初始化pi
+    for(let i=0; i<graph.length; i++)
+    {
+        for(let j=0; j<graph[i].length; j++)
+        {
+            if(graph[i][j])
+            {
+                // 有i到j的边则，j的前驱是i
+                points[j].pi = i;
+            }
+        }
+    }
+
+
     for(let i=1; i<points.length-1; i++)
     {
         for(let i=0; i<graph.length; i++)
         {
             for(let j=0; j<graph[i].length; j++)
             {
-                console.log(i+','+j);
                 if(graph[i][j])
                 {
                     relax(i,j);
@@ -145,6 +182,8 @@ function bellman_fold(start)
         }
     }
 
+    // 检测是否有负环
+    return !can_relax(graph);
 
 }
 
@@ -155,7 +194,81 @@ function relax(u, v)
     {
         points[v].d = points[u].d + graph[u][v];
         v.pi = u;
+        return true;
     }
+    return false;
+}
+
+function can_relax(graph_x)
+{
+    let graph = graph_x;
+    // 检测整个图是否可以继续relax
+    for(let i=0; i<graph.length; i++)
+    {
+        for(let j=0; j<graph[i].length; j++)
+        {
+            if(graph[i][j] && points[j].d > points[i].d + graph[i][j])
+            {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+function find_negative_circle()
+{
+
+    for(let i=0; i<graph.length; i++)
+    {
+        graph2[i] = [];
+        for(let j=0; j<graph[i].length; j++)
+        {
+            graph2[i][j] = graph[i][j];
+        }
+    }
+
+    let go_on = true;
+
+    for(let i=0; i<graph2.length && go_on; i++)
+    {
+        for(let j=0; j<graph2[i].length && go_on; j++)
+        {
+            if(graph2[i][j])
+            {
+                graph2[i][j] = undefined;// 删除边
+                if(!can_relax(graph2))
+                {
+                    // 如果删除边之后就不能继续relax了，则这个边就是负环上的边
+                    let t = i;
+                    circle.push(t);
+                    while(circle.indexOf(points[t].pi) === -1)
+                    {
+
+                        circle.push(points[t].pi);
+                        t = points[t].pi;
+                        if(t === -1)
+                        {
+                            break;
+                        }
+                    }
+                    if(t !== -1)
+                    {
+                        circle = circle.reverse();
+                        go_on = false;
+                        break;
+                    }
+                    else{
+                        interval = window.setInterval("find_negative()", 500);
+                    }
+
+                }
+            }
+        }
+    }
+
+    draw(graph);
+    emphasize_circle();
 }
 
 function Node_x(from, to) {
@@ -288,13 +401,38 @@ function draw(graph_x) {
 
     for (let i = 0; i < graph.length; i++) {
         for (let j = 0; j < graph[i].length; j++) {
-            if(graph[i][j])
+            if(graph[i][j] && !is_in_circle(i,j))
             {
                 drawArrow(ctx, points[i].x, points[i].y, points[j].x, points[j].y, arrow_theta, arrow_headlen, 3, arrow_color, graph[i][j]);
             }
         }
     }
 
+}
+function is_in_circle(u, v)
+{
+    for(let i=0; i<circle.length; i++)
+    {
+        let from = circle[i];
+        let to = circle[(i+1) % circle.length];
+
+        if(u === from && v === to)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+function emphasize_circle()
+{
+    for(let i=0; i<circle.length; i++)
+    {
+        let from = circle[i];
+        let to = circle[(i+1) % circle.length];
+
+        drawArrow(ctx, points[from].x, points[from].y, points[to].x, points[to].y, arrow_theta, arrow_headlen, 5, arrow_color2, graph[from][to]);
+
+    }
 }
 
 function Node(element, weight = null) {
