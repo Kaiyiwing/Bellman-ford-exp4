@@ -6,7 +6,7 @@ let points = [];
 let graph = [];
 let graph2 = [];// 用于拷贝数组
 // 画布属性
-let c_width = 1200, c_height = 800;
+let c_width = 1200, c_height = 600;
 
 let arrow_color = 'rgba(0,0,256,0.4)';
 let arrow_color2 = 'rgba(0,256,0,0.8)';
